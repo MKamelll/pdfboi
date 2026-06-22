@@ -19,7 +19,7 @@ from reorder_widget import ReorderWidget
 
 
 class MainWindow(QWidget):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
 
         self._layout = QVBoxLayout(self)
@@ -28,7 +28,7 @@ class MainWindow(QWidget):
         self.left_box = QVBoxLayout(self.left_widget)
         self.right_widget = QWidget()
         self.right_box = QVBoxLayout(self.right_widget)
-        self.splitter = QSplitter(Qt.Horizontal)
+        self.splitter = QSplitter(Qt.Orientation.Horizontal)
         self.splitter.addWidget(self.left_widget)
         self.splitter.addWidget(self.right_widget)
         self.splitter.setSizes([150, 450])
@@ -36,9 +36,9 @@ class MainWindow(QWidget):
         self.splitter.setStretchFactor(1, 1)
         self.stack = QStackedWidget()
 
-        self.actions = ["Merge", "Split", "Reorder", "Delete"]
+        self._actions = ["Merge", "Split", "Reorder", "Delete"]
         self.left_box_list = QListWidget()
-        self.left_box_list.addItems(self.actions)
+        self.left_box_list.addItems(self._actions)
         self.left_box_list.currentRowChanged.connect(self.stack.setCurrentIndex)
         self.left_box.addWidget(self.left_box_list)
 
@@ -57,7 +57,7 @@ class MainWindow(QWidget):
         self._layout.addWidget(self.splitter)
 
 
-def main():
+def main() -> None:
     app = QApplication(sys.argv)
     window = MainWindow()
     window.resize(640, 460)
