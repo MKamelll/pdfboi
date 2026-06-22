@@ -34,7 +34,7 @@ class Worker(QThread):
         self.path = path
         self.indices = indices
 
-    def run(self):
+    def run(self) -> None:
         src_doc = PdfReader(self.path)
         out_doc = PdfWriter()
         src_count = len(src_doc.pages)
@@ -49,7 +49,7 @@ class Worker(QThread):
 
 
 class DeleteWidget(QWidget):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self._layout = QVBoxLayout(self)
 
@@ -88,14 +88,14 @@ class DeleteWidget(QWidget):
 
         self._layout.addWidget(self.controls_widget)
 
-    def open_file(self):
+    def open_file(self) -> None:
         self.path, _ = QFileDialog.getOpenFileName(
             self, "Open File", QDir.homePath(), "PDFs (*.pdf)"
         )
         self.file_label.setText(f"File: {self.path}")
         self.render_thumbnails()
 
-    def render_thumbnails(self):
+    def render_thumbnails(self) -> None:
         self.progress_bar.show()
         self.viewer_worker = ThumbnailWorker(self.path)
         self.viewer_worker.total_ready.connect(self.progress_bar.setMaximum)
@@ -105,16 +105,16 @@ class DeleteWidget(QWidget):
         self.viewer_worker.results_ready.connect(self.on_page_ready)
         self.viewer_worker.start()
 
-    def set_initial_indices(self, count: int):
+    def set_initial_indices(self, count: int) -> None:
         self.page_count = count
         self.pages_indices: list[int] = []
 
-    def prepopulate_list(self, count: int):
+    def prepopulate_list(self, count: int) -> None:
         for i in range(count):
             item = QListWidgetItem(self.pages_list)
             item.setSizeHint(QSize(120, 160))
 
-    def on_page_ready(self, pix: pypdfium.PdfBitmap, index: int):
+    def on_page_ready(self, pix: pypdfium.PdfBitmap, index: int) -> None:
         if index == self.page_count - 1:
             self.progress_bar.hide()
 
@@ -123,11 +123,11 @@ class DeleteWidget(QWidget):
         item.setSizeHint(page.sizeHint())
         self.pages_list.setItemWidget(item, page)
 
-    def on_pages_change(self):
+    def on_pages_change(self) -> None:
         self.pages_input.setEnabled(self.pages_list.count() > 0)
         self.split_btn.setEnabled(self.pages_list.count() > 0)
 
-    def calculate_indices(self, text: str):
+    def calculate_indices(self, text: str) -> None:
         gps = text.split(",")
         results = set()
         try:
@@ -148,7 +148,7 @@ class DeleteWidget(QWidget):
 
         self.pages_indices = list(results)
 
-    def re_render_thumbnails(self, text: str):
+    def re_render_thumbnails(self, text: str) -> None:
         if len(text) == 0:
             for i in range(self.pages_list.count()):
                 self.pages_list.setRowHidden(i, False)
@@ -157,7 +157,7 @@ class DeleteWidget(QWidget):
             for i in range(self.pages_list.count()):
                 self.pages_list.setRowHidden(i, i in self.pages_indices)
 
-    def split(self):
+    def split(self) -> None:
         self.progress_bar.show()
         self.worker = Worker(self.path, self.pages_indices)
         self.worker.total_ready.connect(self.progress_bar.setMaximum)
@@ -166,7 +166,7 @@ class DeleteWidget(QWidget):
         self.worker.error.connect(self.on_error)
         self.worker.start()
 
-    def on_results(self, doc: PdfWriter):
+    def on_results(self, doc: PdfWriter) -> None:
         self.progress_bar.hide()
         self.progress_bar.reset()
         self.out_path, _ = QFileDialog.getSaveFileName(
@@ -176,5 +176,5 @@ class DeleteWidget(QWidget):
             self.out_path = self.out_path + ".pdf"
         doc.write(self.out_path)
 
-    def on_error(self, err: str):
+    def on_error(self, err: str) -> None:
         QMessageBox.warning(self, "Error", err)
