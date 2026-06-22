@@ -175,7 +175,11 @@ class SplitWidget(QWidget):
         self.out_path, _ = QFileDialog.getSaveFileName(
             self, "Save as", QDir.homePath(), "PDFs (*.pdf)"
         )
-        doc.save(self.out_path + ".pdf")
+
+        if not self.out_path.endswith(".pdf"):
+            self.out_path = self.out_path + ".pdf"
+
+        doc.save(self.out_path)
 
     def on_error(self, err: str):
         QMessageBox.warning(self, "Error", err)
