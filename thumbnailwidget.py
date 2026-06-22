@@ -40,19 +40,21 @@ class ThumbnailWorker(QThread):
 
 
 class ThumbnailWidget(QWidget):
-    def __init__(self, pixmap: pypdfium.PdfBitmap, index: int):
-        super().__init__()
+    def __init__(self, bitmap: pypdfium.PdfBitmap, index: int, parent: QWidget = None):
+        super().__init__(parent=parent)
+
+        self.index = index
+        self.bitmap = bitmap
 
         self._layout = QHBoxLayout(self)
-        self.index = index
         self.label = QLabel(f"Page {self.index+1}")
 
-        data = pixmap.to_pil().convert("RGB").tobytes()
+        data = self.bitmap.to_pil().convert("RGB").tobytes()
         img = QImage(
             data,
-            pixmap.width,
-            pixmap.height,
-            pixmap.width * 3,
+            self.bitmap.width,
+            self.bitmap.height,
+            self.bitmap.width * 3,
             QImage.Format.Format_RGB888,
         )
         pixmap = QPixmap.fromImage(img)

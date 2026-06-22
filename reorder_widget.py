@@ -11,8 +11,16 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLineEdit,
     QLabel,
+    QProgressBar,
+    QListWidgetItem,
+    QSizePolicy,
+    QMessageBox,
 )
-from PySide6.QtCore import Qt, QDir
+from PySide6.QtGui import QImage, QPixmap, QShortcut, QKeySequence
+from PySide6.QtCore import Qt, QDir, QThread, Signal, QSize
+from thumbnailwidget import ThumbnailWidget, ThumbnailWorker
+from pypdf import PdfWriter, PdfReader
+import pypdfium2 as pypdfium
 
 
 class ReorderWidget(QWidget):
@@ -20,30 +28,56 @@ class ReorderWidget(QWidget):
         super().__init__()
         self.layout = QVBoxLayout(self)
 
-        self.pages_widget = QWidget()
-        self.pages_layout = QVBoxLayout(self.pages_widget)
         self.file_label = QLabel("File:")
         self.pages_list = QListWidget()
-        self.pages_layout.addWidget(self.file_label, 0, Qt.AlignmentFlag.AlignCenter)
-        self.pages_layout.addWidget(self.pages_list)
+        self.layout.addWidget(self.file_label, 0, Qt.AlignmentFlag.AlignCenter)
+        self.layout.addWidget(self.pages_list)
+
+        self.pages_reorder_widget = QWidget()
+        self.pages_reorder_layout = QHBoxLayout(self.pages_reorder_widget)
+
+        self.up_btn = QPushButton("Up")
+        self.up_btn.setToolTip("Alt+Up")
+        self.up_btn.clicked.connect(self.move_page_up)
+        self.pages_reorder_layout.addWidget(self.up_btn)
+
+        self.down_btn = QPushButton("Down")
+        self.down_btn.setToolTip("Alt+Down")
+        self.down_btn.clicked.connect(self.move_page_down)
+        self.pages_reorder_layout.addWidget(self.down_btn)
+
+        self.layout.addWidget(
+            self.pages_reorder_widget, 0, Qt.AlignmentFlag.AlignCenter
+        )
+
+        self.progress_bar = QProgressBar()
+        self.progress_bar.hide()
+
+        self.layout.addWidget(self.progress_bar)
 
         self.controls_widget = QWidget()
         self.controls_layout = QHBoxLayout(self.controls_widget)
         self.add_file_btn = QPushButton("Add File")
         self.add_file_btn.clicked.connect(self.open_file)
 
-        self.split_btn = QPushButton("Reorder")
-        self.split_btn.setEnabled(False)
+        QShortcut(QKeySequence("Alt+Up"), self).activated.connect(
+            self.up_btn.animateClick
+        )
+        QShortcut(QKeySequence("Alt+Down"), self).activated.connect(
+            self.down_btn.animateClick
+        )
+
+        self.reorder_btn = QPushButton("Reorder")
+        self.reorder_btn.setEnabled(False)
+        self.reorder_btn.clicked.connect(self.reorder)
 
         self.pages_list.model().rowsInserted.connect(self.on_pages_change)
         self.pages_list.model().rowsRemoved.connect(self.on_pages_change)
 
         self.controls_layout.addWidget(self.add_file_btn)
         self.controls_layout.addStretch()
-        self.controls_layout.addWidget(self.split_btn)
+        self.controls_layout.addWidget(self.reorder_btn)
 
-        self.layout.addWidget(self.pages_widget)
-        self.layout.addStretch()
         self.layout.addWidget(self.controls_widget)
 
     def open_file(self):
@@ -51,7 +85,77 @@ class ReorderWidget(QWidget):
             self, "Open File", QDir.homePath(), "PDFs (*.pdf)"
         )
         self.file_label.setText(f"File: {self.path}")
+        self.render_thumbnails()
+
+    def render_thumbnails(self):
+        self.progress_bar.show()
+        self.viewer_worker = ThumbnailWorker(self.path)
+        self.viewer_worker.total_ready.connect(self.progress_bar.setMaximum)
+        self.viewer_worker.total_ready.connect(self.set_initial_indices)
+        self.viewer_worker.total_ready.connect(self.prepopulate_list)
+        self.viewer_worker.progress.connect(self.progress_bar.setValue)
+        self.viewer_worker.results_ready.connect(self.on_page_ready)
+        self.viewer_worker.start()
+
+    def set_initial_indices(self, count: int):
+        self.page_count = count
+        self.pages_indices: list[int] = []
+
+    def prepopulate_list(self, count: int):
+        for i in range(count):
+            item = QListWidgetItem(self.pages_list)
+            item.setSizeHint(QSize(120, 160))
+
+    def on_page_ready(self, pix: pypdfium.PdfBitmap, index: int):
+        if index == self.page_count - 1:
+            self.progress_bar.hide()
+
+        item = self.pages_list.item(index)
+        page = ThumbnailWidget(pix, index, self.pages_list)
+        item.setSizeHint(page.sizeHint())
+        self.pages_list.setItemWidget(item, page)
 
     def on_pages_change(self):
-        self.pages_input.setEnabled(self.pages_list.count() > 0)
-        self.split_btn.setEnabled(self.pages_list.count() > 0)
+        self.reorder_btn.setEnabled(self.pages_list.count() > 0)
+
+    def move_page_up(self):
+        row = self.pages_list.currentRow()
+        if row <= 0:
+            return
+
+        widget = self.pages_list.itemWidget(self.pages_list.item(row))
+        index, bitmap = widget.index, widget.bitmap
+        item = self.pages_list.takeItem(row)
+        self.pages_list.insertItem(row - 1, item)
+        new_widget = ThumbnailWidget(bitmap, index, self.pages_list)
+        self.pages_list.setItemWidget(item, new_widget)
+        self.pages_list.setCurrentRow(row - 1)
+
+    def move_page_down(self):
+        row = self.pages_list.currentRow()
+        if row >= self.pages_list.count() - 1:
+            return
+
+        widget = self.pages_list.itemWidget(self.pages_list.item(row))
+        index, bitmap = widget.index, widget.bitmap
+        item = self.pages_list.takeItem(row)
+        self.pages_list.insertItem(row + 1, item)
+        new_widget = ThumbnailWidget(bitmap, index, self.pages_list)
+        self.pages_list.setItemWidget(item, new_widget)
+        self.pages_list.setCurrentRow(row + 1)
+
+    def reorder(self):
+        pass
+
+    def on_results(self, doc: PdfWriter):
+        self.progress_bar.hide()
+        self.progress_bar.reset()
+        self.out_path, _ = QFileDialog.getSaveFileName(
+            self, "Save as", QDir.homePath(), "PDFs (*.pdf)"
+        )
+        if not self.out_path.endswith(".pdf"):
+            self.out_path = self.out_path + ".pdf"
+        doc.write(self.out_path)
+
+    def on_error(self, err: str):
+        QMessageBox.warning(self, "Error", err)
