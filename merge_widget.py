@@ -13,11 +13,11 @@ from PySide6.QtWidgets import (
     QMessageBox,
 )
 from PySide6.QtCore import Qt, QDir, QThread, Signal
-import pymupdf
+from pypdf import PdfWriter
 
 
 class Worker(QThread):
-    results_ready = Signal(pymupdf.Document)
+    results_ready = Signal(PdfWriter)
     progress = Signal(int)
     total_ready = Signal(int)
     error = Signal(str)
@@ -32,14 +32,13 @@ class Worker(QThread):
 
         self.total_ready.emit(len(self.files))
 
-        doc_a = pymupdf.open(self.files[0])
+        merger = PdfWriter()
 
-        for i, path in enumerate(self.files[1:]):
-            doc = pymupdf.open(path)
-            doc_a.insert_pdf(doc)
+        for i, path in enumerate(self.files):
+            merger.append(path)
             self.progress.emit(i + 1)
 
-        self.results_ready.emit(doc_a)
+        self.results_ready.emit(merger)
 
 
 class MergeWidget(QWidget):
@@ -94,13 +93,13 @@ class MergeWidget(QWidget):
         self.worker.error.connect(self.on_error)
         self.worker.start()
 
-    def on_results(self, doc: pymupdf.Document):
+    def on_results(self, doc: PdfWriter):
         self.progress_bar.hide()
         self.progress_bar.reset()
         self.out_path, _ = QFileDialog.getSaveFileName(
             self, "Save as", QDir.homePath(), "PDFs (*.pdf)"
         )
-        doc.save(self.out_path + ".pdf")
+        doc.write(self.out_path + ".pdf")
 
     def on_error(self, err: str):
         QMessageBox.warning(self, "Error", err)

@@ -18,13 +18,13 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtCore import Qt, QDir, QThread, Signal, QSize
-import fitz
 from thumbnailwidget import ThumbnailWidget, ThumbnailWorker
-import pymupdf
+from pypdf import PdfWriter, PdfReader
+import pypdfium2 as pypdfium
 
 
 class Worker(QThread):
-    results_ready = Signal(pymupdf.Document)
+    results_ready = Signal(PdfWriter)
     progress = Signal(int)
     total_ready = Signal(int)
     error = Signal(str)
@@ -35,13 +35,14 @@ class Worker(QThread):
         self.indices = indices
 
     def run(self):
-        src_doc = fitz.open(self.path)
-        out_doc = fitz.open()
-        self.total_ready.emit(src_doc.page_count - len(self.indices))
+        src_doc = PdfReader(self.path)
+        out_doc = PdfWriter()
+        src_count = len(src_doc.pages)
+        self.total_ready.emit(src_count - len(self.indices))
 
-        for i in range(src_doc.page_count):
+        for i in range(src_count):
             if i not in self.indices:
-                out_doc.insert_pdf(src_doc, from_page=i, to_page=i)
+                out_doc.append(src_doc, [i])
                 self.progress.emit(i + 1)
 
         self.results_ready.emit(out_doc)
@@ -113,17 +114,12 @@ class DeleteWidget(QWidget):
             item = QListWidgetItem(self.pages_list)
             item.setSizeHint(QSize(120, 160))
 
-    def on_page_ready(self, pix: fitz.Pixmap, index: int):
+    def on_page_ready(self, pix: pypdfium.PdfBitmap, index: int):
         if index == self.page_count - 1:
             self.progress_bar.hide()
 
-        img = QImage(
-            pix.samples, pix.width, pix.height, pix.stride, QImage.Format.Format_RGB888
-        )
-        pixmap = QPixmap.fromImage(img)
-
         item = self.pages_list.item(index)
-        page = ThumbnailWidget(pixmap, index)
+        page = ThumbnailWidget(pix, index)
         item.setSizeHint(page.sizeHint())
         self.pages_list.setItemWidget(item, page)
 
@@ -170,7 +166,7 @@ class DeleteWidget(QWidget):
         self.worker.error.connect(self.on_error)
         self.worker.start()
 
-    def on_results(self, doc: pymupdf.Document):
+    def on_results(self, doc: PdfWriter):
         self.progress_bar.hide()
         self.progress_bar.reset()
         self.out_path, _ = QFileDialog.getSaveFileName(
@@ -178,7 +174,7 @@ class DeleteWidget(QWidget):
         )
         if not self.out_path.endswith(".pdf"):
             self.out_path = self.out_path + ".pdf"
-        doc.save(self.out_path)
+        doc.write(self.out_path)
 
     def on_error(self, err: str):
         QMessageBox.warning(self, "Error", err)

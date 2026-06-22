@@ -5,7 +5,9 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
-    "pymupdf>=1.27.2.3",
+    "pillow>=12.2.0",
+    "pypdf>=6.13.3",
+    "pypdfium2>=5.10.1",
     "pyside6>=6.11.1",
 ]
 
