@@ -48,14 +48,14 @@ class Worker(QThread):
 
 
 class ReorderWidget(QWidget):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
-        self.layout = QVBoxLayout(self)
+        self._layout = QVBoxLayout(self)
 
         self.file_label = QLabel("File:")
         self.pages_list = QListWidget()
-        self.layout.addWidget(self.file_label, 0, Qt.AlignmentFlag.AlignCenter)
-        self.layout.addWidget(self.pages_list)
+        self._layout.addWidget(self.file_label, 0, Qt.AlignmentFlag.AlignCenter)
+        self._layout.addWidget(self.pages_list)
 
         self.pages_reorder_widget = QWidget()
         self.pages_reorder_layout = QHBoxLayout(self.pages_reorder_widget)
@@ -72,14 +72,14 @@ class ReorderWidget(QWidget):
         self.down_btn.clicked.connect(self.move_page_down)
         self.pages_reorder_layout.addWidget(self.down_btn)
 
-        self.layout.addWidget(
+        self._layout.addWidget(
             self.pages_reorder_widget, 0, Qt.AlignmentFlag.AlignCenter
         )
 
         self.progress_bar = QProgressBar()
         self.progress_bar.hide()
 
-        self.layout.addWidget(self.progress_bar)
+        self._layout.addWidget(self.progress_bar)
 
         self.controls_widget = QWidget()
         self.controls_layout = QHBoxLayout(self.controls_widget)
@@ -104,16 +104,16 @@ class ReorderWidget(QWidget):
         self.controls_layout.addStretch()
         self.controls_layout.addWidget(self.reorder_btn)
 
-        self.layout.addWidget(self.controls_widget)
+        self._layout.addWidget(self.controls_widget)
 
-    def open_file(self):
+    def open_file(self) -> None:
         self.path, _ = QFileDialog.getOpenFileName(
             self, "Open File", QDir.homePath(), "PDFs (*.pdf)"
         )
         self.file_label.setText(f"File: {self.path}")
         self.render_thumbnails()
 
-    def render_thumbnails(self):
+    def render_thumbnails(self) -> None:
         self.progress_bar.show()
         self.viewer_worker = ThumbnailWorker(self.path)
         self.viewer_worker.total_ready.connect(self.progress_bar.setMaximum)
@@ -123,11 +123,11 @@ class ReorderWidget(QWidget):
         self.viewer_worker.results_ready.connect(self.on_page_ready)
         self.viewer_worker.start()
 
-    def set_initial_indices(self, count: int):
+    def set_initial_indices(self, count: int) -> None:
         self.page_count = count
         self.pages_indices: list[int] = []
 
-    def prepopulate_list(self, count: int):
+    def prepopulate_list(self, count: int) -> None:
         for i in range(count):
             item = QListWidgetItem(self.pages_list)
             item.setSizeHint(QSize(120, 160))
@@ -147,12 +147,14 @@ class ReorderWidget(QWidget):
         self.down_btn.setEnabled(pages_not_empty)
         self.reorder_btn.setEnabled(pages_not_empty)
 
-    def move_page_up(self):
+    def move_page_up(self) -> None:
         row = self.pages_list.currentRow()
         if row <= 0:
             return
 
         widget = self.pages_list.itemWidget(self.pages_list.item(row))
+        if not isinstance(widget, ThumbnailWidget):
+            return
         index, bitmap = widget.index, widget.bitmap
         item = self.pages_list.takeItem(row)
         self.pages_list.insertItem(row - 1, item)
@@ -166,6 +168,8 @@ class ReorderWidget(QWidget):
             return
 
         widget = self.pages_list.itemWidget(self.pages_list.item(row))
+        if not isinstance(widget, ThumbnailWidget):
+            return
         index, bitmap = widget.index, widget.bitmap
         item = self.pages_list.takeItem(row)
         self.pages_list.insertItem(row + 1, item)
@@ -177,6 +181,8 @@ class ReorderWidget(QWidget):
         indices: list[int] = []
         for i in range(self.pages_list.count()):
             widget = self.pages_list.itemWidget(self.pages_list.item(i))
+            if not isinstance(widget, ThumbnailWidget):
+                continue
             indices.append(widget.index)
 
         self.worker = Worker(self.path, indices)
@@ -196,5 +202,5 @@ class ReorderWidget(QWidget):
             self.out_path = self.out_path + ".pdf"
         doc.write(self.out_path)
 
-    def on_error(self, err: str):
+    def on_error(self, err: str) -> None:
         QMessageBox.warning(self, "Error", err)

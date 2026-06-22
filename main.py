@@ -22,7 +22,7 @@ class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
 
-        self.layout = QVBoxLayout(self)
+        self._layout = QVBoxLayout(self)
 
         self.left_widget = QWidget()
         self.left_box = QVBoxLayout(self.left_widget)
@@ -54,7 +54,7 @@ class MainWindow(QWidget):
         self.stack.addWidget(self.reorder_widget)
         self.stack.addWidget(self.delete_widget)
 
-        self.layout.addWidget(self.splitter)
+        self._layout.addWidget(self.splitter)
 
 
 def main():

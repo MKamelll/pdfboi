@@ -51,17 +51,17 @@ class Worker(QThread):
 class DeleteWidget(QWidget):
     def __init__(self):
         super().__init__()
-        self.layout = QVBoxLayout(self)
+        self._layout = QVBoxLayout(self)
 
         self.file_label = QLabel("File:")
         self.pages_list = QListWidget()
-        self.layout.addWidget(self.file_label, 0, Qt.AlignmentFlag.AlignCenter)
-        self.layout.addWidget(self.pages_list)
+        self._layout.addWidget(self.file_label, 0, Qt.AlignmentFlag.AlignCenter)
+        self._layout.addWidget(self.pages_list)
 
         self.progress_bar = QProgressBar()
         self.progress_bar.hide()
 
-        self.layout.addWidget(self.progress_bar)
+        self._layout.addWidget(self.progress_bar)
 
         self.controls_widget = QWidget()
         self.controls_layout = QHBoxLayout(self.controls_widget)
@@ -86,7 +86,7 @@ class DeleteWidget(QWidget):
         self.controls_layout.addWidget(self.pages_input)
         self.controls_layout.addWidget(self.split_btn)
 
-        self.layout.addWidget(self.controls_widget)
+        self._layout.addWidget(self.controls_widget)
 
     def open_file(self):
         self.path, _ = QFileDialog.getOpenFileName(

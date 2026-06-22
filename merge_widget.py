@@ -44,7 +44,7 @@ class Worker(QThread):
 class MergeWidget(QWidget):
     def __init__(self):
         super().__init__()
-        self.layout = QVBoxLayout(self)
+        self._layout = QVBoxLayout(self)
         self.file_list = QListWidget()
         self.file_list.setDragDropMode(QListWidget.DragDropMode.InternalMove)
         self.progress_bar = QProgressBar()
@@ -70,10 +70,10 @@ class MergeWidget(QWidget):
             lambda _: self.merge_files_btn.setEnabled(self.file_list.count() > 0)
         )
 
-        self.layout.addWidget(self.file_list)
-        self.layout.addStretch()
-        self.layout.addWidget(self.progress_bar)
-        self.layout.addWidget(self.controls_widget)
+        self._layout.addWidget(self.file_list)
+        self._layout.addStretch()
+        self._layout.addWidget(self.progress_bar)
+        self._layout.addWidget(self.controls_widget)
 
     def open_files(self):
         self.paths, _ = QFileDialog.getOpenFileNames(

@@ -17,3 +17,6 @@ dev = [
     "python-lsp-black>=2.0.0",
     "python-lsp-server[all]>=1.14.0",
 ]
+
+[tool.mypy]
+strict = true
