@@ -23,6 +23,30 @@ from pypdf import PdfWriter, PdfReader
 import pypdfium2 as pypdfium
 
 
+class Worker(QThread):
+    results_ready = Signal(PdfWriter)
+    progress = Signal(int)
+    total_ready = Signal(int)
+    error = Signal(str)
+
+    def __init__(self, path: str, indices: list[int]):
+        super().__init__()
+        self.path = path
+        self.indices = indices
+
+    def run(self):
+        src_doc = PdfReader(self.path)
+        out_doc = PdfWriter()
+
+        self.total_ready.emit(len(self.indices))
+
+        for i, index in enumerate(self.indices):
+            out_doc.append(src_doc, [index])
+            self.progress.emit(i + 1)
+
+        self.results_ready.emit(out_doc)
+
+
 class ReorderWidget(QWidget):
     def __init__(self):
         super().__init__()
@@ -38,11 +62,13 @@ class ReorderWidget(QWidget):
 
         self.up_btn = QPushButton("Up")
         self.up_btn.setToolTip("Alt+Up")
+        self.up_btn.setEnabled(False)
         self.up_btn.clicked.connect(self.move_page_up)
         self.pages_reorder_layout.addWidget(self.up_btn)
 
         self.down_btn = QPushButton("Down")
         self.down_btn.setToolTip("Alt+Down")
+        self.down_btn.setEnabled(False)
         self.down_btn.clicked.connect(self.move_page_down)
         self.pages_reorder_layout.addWidget(self.down_btn)
 
@@ -116,7 +142,10 @@ class ReorderWidget(QWidget):
         self.pages_list.setItemWidget(item, page)
 
     def on_pages_change(self):
-        self.reorder_btn.setEnabled(self.pages_list.count() > 0)
+        pages_not_empty = self.pages_list.count() > 0
+        self.up_btn.setEnabled(pages_not_empty)
+        self.down_btn.setEnabled(pages_not_empty)
+        self.reorder_btn.setEnabled(pages_not_empty)
 
     def move_page_up(self):
         row = self.pages_list.currentRow()
@@ -145,7 +174,17 @@ class ReorderWidget(QWidget):
         self.pages_list.setCurrentRow(row + 1)
 
     def reorder(self):
-        pass
+        indices: list[int] = []
+        for i in range(self.pages_list.count()):
+            widget = self.pages_list.itemWidget(self.pages_list.item(i))
+            indices.append(widget.index)
+
+        self.worker = Worker(self.path, indices)
+        self.worker.total_ready.connect(self.progress_bar.setMaximum)
+        self.worker.progress.connect(self.progress_bar.setValue)
+        self.worker.results_ready.connect(self.on_results)
+        self.worker.error.connect(self.on_error)
+        self.worker.start()
 
     def on_results(self, doc: PdfWriter):
         self.progress_bar.hide()
