@@ -100,7 +100,7 @@ class MergeWidget(QWidget):
         self.out_path, _ = QFileDialog.getSaveFileName(
             self, "Save as", QDir.homePath(), "PDFs (*.pdf)"
         )
-        doc.save(self.out_path)
+        doc.save(self.out_path + ".pdf")
 
     def on_error(self, err: str):
         QMessageBox.warning(self, "Error", err)
