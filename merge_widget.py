@@ -26,7 +26,7 @@ class Worker(QThread):
         super().__init__()
         self.files = files
 
-    def run(self):
+    def run(self) -> None:
         if len(self.files) < 1:
             self.error.emit("Files cannot be empty")
 
@@ -42,7 +42,7 @@ class Worker(QThread):
 
 
 class MergeWidget(QWidget):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self._layout = QVBoxLayout(self)
         self.file_list = QListWidget()
@@ -75,14 +75,14 @@ class MergeWidget(QWidget):
         self._layout.addWidget(self.progress_bar)
         self._layout.addWidget(self.controls_widget)
 
-    def open_files(self):
+    def open_files(self) -> None:
         self.paths, _ = QFileDialog.getOpenFileNames(
             self, "Open Files", QDir.homePath(), "PDFs (*.pdf)"
         )
 
         self.file_list.addItems(self.paths)
 
-    def merge_files(self):
+    def merge_files(self) -> None:
         self.progress_bar.show()
         self.worker = Worker(
             [self.file_list.item(i).text() for i in range(self.file_list.count())]
@@ -93,7 +93,7 @@ class MergeWidget(QWidget):
         self.worker.error.connect(self.on_error)
         self.worker.start()
 
-    def on_results(self, doc: PdfWriter):
+    def on_results(self, doc: PdfWriter) -> None:
         self.progress_bar.hide()
         self.progress_bar.reset()
         self.out_path, _ = QFileDialog.getSaveFileName(
@@ -101,5 +101,5 @@ class MergeWidget(QWidget):
         )
         doc.write(self.out_path + ".pdf")
 
-    def on_error(self, err: str):
+    def on_error(self, err: str) -> None:
         QMessageBox.warning(self, "Error", err)
