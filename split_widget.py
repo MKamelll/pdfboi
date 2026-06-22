@@ -14,11 +14,36 @@ from PySide6.QtWidgets import (
     QProgressBar,
     QListWidgetItem,
     QSizePolicy,
+    QMessageBox,
 )
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtCore import Qt, QDir, QThread, Signal, QSize
 import fitz
 from thumbnailwidget import ThumbnailWidget, ThumbnailWorker
+import pymupdf
+
+
+class Worker(QThread):
+    results_ready = Signal(pymupdf.Document)
+    progress = Signal(int)
+    total_ready = Signal(int)
+    error = Signal(str)
+
+    def __init__(self, path: str, indices: list[int]):
+        super().__init__()
+        self.path = path
+        self.indices = indices
+
+    def run(self):
+        src_doc = fitz.open(self.path)
+        out_doc = fitz.open()
+        self.total_ready.emit(len(self.indices))
+
+        for i, index in enumerate(self.indices):
+            out_doc.insert_pdf(src_doc, from_page=index, to_page=index)
+            self.progress.emit(i + 1)
+
+        self.results_ready.emit(out_doc)
 
 
 class SplitWidget(QWidget):
@@ -49,6 +74,7 @@ class SplitWidget(QWidget):
 
         self.split_btn = QPushButton("Split")
         self.split_btn.setEnabled(False)
+        self.split_btn.clicked.connect(self.split)
 
         self.pages_list.model().rowsInserted.connect(self.on_pages_change)
         self.pages_list.model().rowsRemoved.connect(self.on_pages_change)
@@ -68,6 +94,7 @@ class SplitWidget(QWidget):
         self.render_thumbnails()
 
     def render_thumbnails(self):
+        self.progress_bar.show()
         self.viewer_worker = ThumbnailWorker(self.path)
         self.viewer_worker.total_ready.connect(self.progress_bar.setMaximum)
         self.viewer_worker.total_ready.connect(self.set_initial_indices)
@@ -86,6 +113,9 @@ class SplitWidget(QWidget):
             item.setSizeHint(QSize(120, 160))
 
     def on_page_ready(self, pix: fitz.Pixmap, index: int):
+        if index == self.page_count - 1:
+            self.progress_bar.hide()
+
         img = QImage(
             pix.samples, pix.width, pix.height, pix.stride, QImage.Format.Format_RGB888
         )
@@ -129,3 +159,23 @@ class SplitWidget(QWidget):
         else:
             for i in range(self.pages_list.count()):
                 self.pages_list.setRowHidden(i, i not in self.pages_indices)
+
+    def split(self):
+        self.progress_bar.show()
+        self.worker = Worker(self.path, self.pages_indices)
+        self.worker.total_ready.connect(self.progress_bar.setMaximum)
+        self.worker.progress.connect(self.progress_bar.setValue)
+        self.worker.results_ready.connect(self.on_results)
+        self.worker.error.connect(self.on_error)
+        self.worker.start()
+
+    def on_results(self, doc: pymupdf.Document):
+        self.progress_bar.hide()
+        self.progress_bar.reset()
+        self.out_path, _ = QFileDialog.getSaveFileName(
+            self, "Save as", QDir.homePath(), "PDFs (*.pdf)"
+        )
+        doc.save(self.out_path)
+
+    def on_error(self, err: str):
+        QMessageBox.warning(self, "Error", err)
