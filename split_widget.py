@@ -18,9 +18,12 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtCore import Qt, QDir, QThread, Signal, QSize
+from pdflist_widget import PdfListWidget
 from thumbnailwidget import ThumbnailWidget, ThumbnailWorker
 from pypdf import PdfWriter, PdfReader
 import pypdfium2 as pypdfium
+
+from util import calculate_indices
 
 
 class Worker(QThread):
@@ -52,11 +55,20 @@ class SplitWidget(QWidget):
     def __init__(self) -> None:
         super().__init__()
         self._layout = QVBoxLayout(self)
+        self.path: str | None = None
+        self.indices: list[int] | None = None
 
         self.file_label = QLabel("File:")
-        self.pages_list = QListWidget()
+        self.list_widget = PdfListWidget()
+        self.list_widget.started.connect(self.progress_bar.show)
+        self.list_widget.progress_max.connect(self.progress_bar.setMaximum)
+        self.list_widget.progress_update.connect(self.progress_bar.setValue)
+        self.list_widget.done.connect(self.progress_bar.hide)
+        self.list_widget.done.connect(self.progress_bar.reset)
+        self.list_widget.pages_change.connect(self.on_pages_change)
+
         self._layout.addWidget(self.file_label, 0, Qt.AlignmentFlag.AlignCenter)
-        self._layout.addWidget(self.pages_list)
+        self._layout.addWidget(self.list_widget)
 
         self.progress_bar = QProgressBar()
         self.progress_bar.hide()
@@ -78,9 +90,6 @@ class SplitWidget(QWidget):
         self.split_btn.setEnabled(False)
         self.split_btn.clicked.connect(self.split)
 
-        self.pages_list.model().rowsInserted.connect(self.on_pages_change)
-        self.pages_list.model().rowsRemoved.connect(self.on_pages_change)
-
         self.controls_layout.addWidget(self.add_file_btn)
         self.controls_layout.addStretch()
         self.controls_layout.addWidget(self.pages_input)
@@ -92,72 +101,36 @@ class SplitWidget(QWidget):
         self.path, _ = QFileDialog.getOpenFileName(
             self, "Open File", QDir.homePath(), "PDFs (*.pdf)"
         )
+
+        if len(self.path) < 1:
+            return
+
         self.file_label.setText(f"File: {self.path}")
-        self.render_thumbnails()
+        self.list_widget.render_thumbnails()
 
-    def render_thumbnails(self) -> None:
-        self.viewer_worker = ThumbnailWorker(self.path)
-        self.viewer_worker.started.connect(self.progress_bar.show)
-        self.viewer_worker.total_ready.connect(self.progress_bar.setMaximum)
-        self.viewer_worker.total_ready.connect(self.set_initial_indices)
-        self.viewer_worker.total_ready.connect(self.prepopulate_list)
-        self.viewer_worker.progress.connect(self.progress_bar.setValue)
-        self.viewer_worker.results_ready.connect(self.on_page_ready)
-        self.viewer_worker.done.connect(self.progress_bar.hide)
-        self.viewer_worker.done.connect(self.progress_bar.reset)
-        self.viewer_worker.start()
-
-    def set_initial_indices(self, count: int) -> None:
-        self.page_count = count
-        self.pages_indices = [i for i in range(count)]
-
-    def prepopulate_list(self, count: int) -> None:
-        for i in range(count):
-            item = QListWidgetItem(self.pages_list)
-            item.setSizeHint(QSize(120, 160))
-
-    def on_page_ready(self, pix: pypdfium.PdfBitmap, index: int) -> None:
-        item = self.pages_list.item(index)
-        page = ThumbnailWidget(pix, index)
-        item.setSizeHint(page.sizeHint())
-        self.pages_list.setItemWidget(item, page)
-
-    def on_pages_change(self) -> None:
-        self.pages_input.setEnabled(self.pages_list.count() > 0)
-        self.split_btn.setEnabled(self.pages_list.count() > 0)
+    def on_pages_change(self, count: int) -> None:
+        self.pages_input.setEnabled(count > 0)
+        self.split_btn.setEnabled(count > 0)
 
     def calculate_indices(self, text: str) -> None:
-        gps = text.split(",")
-        results = set()
-        try:
-            for g in gps:
-                if "-" in g:
-                    parts = g.split("-")
-                    if len(parts) == 2:
-                        start, end = int(parts[0]) - 1, int(parts[1]) - 1
-                        start = max(0, min(start, self.page_count))
-                        end = max(0, min(end, self.page_count))
-                        for i in range(start, end + 1):
-                            results.add(i)
-                else:
-                    g_int = max(0, min(int(g) - 1, self.page_count))
-                    results.add(g_int)
-        except ValueError:
-            pass
-
-        self.pages_indices = list(results)
+        self.indices = calculate_indices(text)
 
     def re_render_thumbnails(self, text: str) -> None:
-        if len(text) == 0:
-            for i in range(self.pages_list.count()):
-                self.pages_list.setRowHidden(i, False)
+        if len(text) == 0 or self.indices is None:
+            for i in range(self.list_widget.count()):
+                self.list_widget.setRowHidden(i, False)
 
         else:
-            for i in range(self.pages_list.count()):
-                self.pages_list.setRowHidden(i, i not in self.pages_indices)
+            for i in range(self.list_widget.count()):
+                self.list_widget.setRowHidden(i, i not in self.indices)
 
     def split(self) -> None:
-        self.worker = Worker(self.path, self.pages_indices)
+        if self.path is None:
+            return
+        if self.indices is None:
+            QMessageBox.warning(self, "Error", "The input range cannot be empty")
+            return
+        self.worker = Worker(self.path, self.indices)
         self.worker.started.connect(self.progress_bar.show)
         self.worker.total_ready.connect(self.progress_bar.setMaximum)
         self.worker.progress.connect(self.progress_bar.setValue)

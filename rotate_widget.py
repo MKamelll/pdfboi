@@ -110,6 +110,10 @@ class RotateWidget(QWidget):
         self.path, _ = QFileDialog.getOpenFileName(
             self, "Open File", QDir.homePath(), "PDFs (*.pdf)"
         )
+
+        if len(self.path) < 1:
+            return
+
         self.file_label.setText(f"File: {self.path}")
         self.render_thumbnails()
 

@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtGui import QImage, QPixmap, QShortcut, QKeySequence
 from PySide6.QtCore import Qt, QDir, QThread, Signal, QSize
+from pdflist_widget import PdfListWidget
 from thumbnailwidget import ThumbnailWidget, ThumbnailWorker
 from pypdf import PdfWriter, PdfReader
 import pypdfium2 as pypdfium
@@ -53,9 +54,16 @@ class ReorderWidget(QWidget):
         self._layout = QVBoxLayout(self)
 
         self.file_label = QLabel("File:")
-        self.pages_list = QListWidget()
+        self.list_widget = PdfListWidget()
+        self.list_widget.started.connect(self.progress_bar.show)
+        self.list_widget.progress_max.connect(self.progress_bar.setMaximum)
+        self.list_widget.progress_update.connect(self.progress_bar.setValue)
+        self.list_widget.done.connect(self.progress_bar.hide)
+        self.list_widget.done.connect(self.progress_bar.reset)
+        self.list_widget.pages_change.connect(self.on_pages_change)
+
         self._layout.addWidget(self.file_label, 0, Qt.AlignmentFlag.AlignCenter)
-        self._layout.addWidget(self.pages_list)
+        self._layout.addWidget(self.list_widget)
 
         self.pages_reorder_widget = QWidget()
         self.pages_reorder_layout = QHBoxLayout(self.pages_reorder_widget)
@@ -97,9 +105,6 @@ class ReorderWidget(QWidget):
         self.reorder_btn.setEnabled(False)
         self.reorder_btn.clicked.connect(self.reorder)
 
-        self.pages_list.model().rowsInserted.connect(self.on_pages_change)
-        self.pages_list.model().rowsRemoved.connect(self.on_pages_change)
-
         self.controls_layout.addWidget(self.add_file_btn)
         self.controls_layout.addStretch()
         self.controls_layout.addWidget(self.reorder_btn)
@@ -110,77 +115,51 @@ class ReorderWidget(QWidget):
         self.path, _ = QFileDialog.getOpenFileName(
             self, "Open File", QDir.homePath(), "PDFs (*.pdf)"
         )
+        if len(self.path) < 1:
+            return
         self.file_label.setText(f"File: {self.path}")
-        self.render_thumbnails()
-
-    def render_thumbnails(self) -> None:
-        self.progress_bar.show()
-        self.viewer_worker = ThumbnailWorker(self.path)
-        self.viewer_worker.total_ready.connect(self.progress_bar.setMaximum)
-        self.viewer_worker.total_ready.connect(self.set_initial_indices)
-        self.viewer_worker.total_ready.connect(self.prepopulate_list)
-        self.viewer_worker.progress.connect(self.progress_bar.setValue)
-        self.viewer_worker.results_ready.connect(self.on_page_ready)
-        self.viewer_worker.start()
-
-    def set_initial_indices(self, count: int) -> None:
-        self.page_count = count
-        self.pages_indices: list[int] = []
-
-    def prepopulate_list(self, count: int) -> None:
-        for i in range(count):
-            item = QListWidgetItem(self.pages_list)
-            item.setSizeHint(QSize(120, 160))
-
-    def on_page_ready(self, pix: pypdfium.PdfBitmap, index: int):
-        if index == self.page_count - 1:
-            self.progress_bar.hide()
-
-        item = self.pages_list.item(index)
-        page = ThumbnailWidget(pix, index, self.pages_list)
-        item.setSizeHint(page.sizeHint())
-        self.pages_list.setItemWidget(item, page)
+        self.list_widget.render_thumbnails()
 
     def on_pages_change(self):
-        pages_not_empty = self.pages_list.count() > 0
+        pages_not_empty = self.list_widget.count() > 0
         self.up_btn.setEnabled(pages_not_empty)
         self.down_btn.setEnabled(pages_not_empty)
         self.reorder_btn.setEnabled(pages_not_empty)
 
     def move_page_up(self) -> None:
-        row = self.pages_list.currentRow()
+        row = self.list_widget.currentRow()
         if row <= 0:
             return
 
-        widget = self.pages_list.itemWidget(self.pages_list.item(row))
+        widget = self.list_widget.itemWidget(self.list_widget.item(row))
         if not isinstance(widget, ThumbnailWidget):
             return
         index, bitmap = widget.index, widget.bitmap
-        item = self.pages_list.takeItem(row)
-        self.pages_list.insertItem(row - 1, item)
-        new_widget = ThumbnailWidget(bitmap, index, self.pages_list)
-        self.pages_list.setItemWidget(item, new_widget)
-        self.pages_list.setCurrentRow(row - 1)
+        item = self.list_widget.takeItem(row)
+        self.list_widget.insertItem(row - 1, item)
+        new_widget = ThumbnailWidget(bitmap, index, self.list_widget)
+        self.list_widget.setItemWidget(item, new_widget)
+        self.list_widget.setCurrentRow(row - 1)
 
     def move_page_down(self):
-        row = self.pages_list.currentRow()
-        if row >= self.pages_list.count() - 1:
+        row = self.list_widget.currentRow()
+        if row >= self.list_widget.count() - 1:
             return
 
-        widget = self.pages_list.itemWidget(self.pages_list.item(row))
+        widget = self.list_widget.itemWidget(self.list_widget.item(row))
         if not isinstance(widget, ThumbnailWidget):
             return
         index, bitmap = widget.index, widget.bitmap
-        item = self.pages_list.takeItem(row)
-        self.pages_list.insertItem(row + 1, item)
-        new_widget = ThumbnailWidget(bitmap, index, self.pages_list)
-        self.pages_list.setItemWidget(item, new_widget)
-        self.pages_list.setCurrentRow(row + 1)
+        item = self.list_widget.takeItem(row)
+        self.list_widget.insertItem(row + 1, item)
+        new_widget = ThumbnailWidget(bitmap, index, self.list_widget)
+        self.list_widget.setItemWidget(item, new_widget)
+        self.list_widget.setCurrentRow(row + 1)
 
     def reorder(self):
         indices: list[int] = []
-        for i in range(self.pages_list.count()):
-            widget = self.pages_list.itemWidget(self.pages_list.item(i))
+        for i in range(self.list_widget.count()):
+            widget = self.list_widget.itemWidget(self.list_widget.item(i))
             if not isinstance(widget, ThumbnailWidget):
                 continue
             indices.append(widget.index)
@@ -189,15 +168,17 @@ class ReorderWidget(QWidget):
         self.worker.total_ready.connect(self.progress_bar.setMaximum)
         self.worker.progress.connect(self.progress_bar.setValue)
         self.worker.results_ready.connect(self.on_results)
+        self.worker.results_ready.connect(self.progress_bar.hide)
+        self.worker.results_ready.connect(self.progress_bar.reset)
         self.worker.error.connect(self.on_error)
         self.worker.start()
 
     def on_results(self, doc: PdfWriter):
-        self.progress_bar.hide()
-        self.progress_bar.reset()
         self.out_path, _ = QFileDialog.getSaveFileName(
             self, "Save as", QDir.homePath(), "PDFs (*.pdf)"
         )
+        if len(self.out_path) < 1:
+            return
         if not self.out_path.endswith(".pdf"):
             self.out_path = self.out_path + ".pdf"
         doc.write(self.out_path)

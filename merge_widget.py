@@ -80,22 +80,25 @@ class MergeWidget(QWidget):
             self, "Open Files", QDir.homePath(), "PDFs (*.pdf)"
         )
 
+        if len(self.paths) == 0:
+            return
+
         self.file_list.addItems(self.paths)
 
     def merge_files(self) -> None:
-        self.progress_bar.show()
         self.worker = Worker(
             [self.file_list.item(i).text() for i in range(self.file_list.count())]
         )
+        self.worker.started.connect(self.progress_bar.show)
         self.worker.total_ready.connect(self.progress_bar.setMaximum)
         self.worker.progress.connect(self.progress_bar.setValue)
         self.worker.results_ready.connect(self.on_results)
+        self.worker.results_ready.connect(self.progress_bar.hide)
+        self.worker.results_ready.connect(self.progress_bar.reset)
         self.worker.error.connect(self.on_error)
         self.worker.start()
 
     def on_results(self, doc: PdfWriter) -> None:
-        self.progress_bar.hide()
-        self.progress_bar.reset()
         self.out_path, _ = QFileDialog.getSaveFileName(
             self, "Save as", QDir.homePath(), "PDFs (*.pdf)"
         )

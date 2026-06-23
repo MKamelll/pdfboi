@@ -28,8 +28,9 @@ class PdfListWidget(QListWidget):
         )
         self.model().rowsRemoved.connect(lambda _: self.pages_change.emit(self.count()))
 
-    def render_thumbnails(self, path: str) -> None:
-        self.path = path
+    def render_thumbnails(self) -> None:
+        if self.path is None:
+            return
         self.viewer_worker = ThumbnailWorker(self.path)
         self.viewer_worker.started.connect(self.started)
         self.viewer_worker.total_ready.connect(self.progress_max)

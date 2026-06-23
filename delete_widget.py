@@ -105,8 +105,12 @@ class DeleteWidget(QWidget):
         self.path, _ = QFileDialog.getOpenFileName(
             self, "Open File", QDir.homePath(), "PDFs (*.pdf)"
         )
+
+        if len(self.path) < 1:
+            return
+
         self.file_label.setText(f"File: {self.path}")
-        self.list_widget.render_thumbnails(self.path)
+        self.list_widget.render_thumbnails()
 
     def on_pages_change(self, count: int) -> None:
         self.pages_input.setEnabled(count > 0)
