@@ -52,6 +52,8 @@ class ReorderWidget(QWidget):
     def __init__(self) -> None:
         super().__init__()
         self._layout = QVBoxLayout(self)
+        self.progress_bar = QProgressBar()
+        self.progress_bar.hide()
 
         self.file_label = QLabel("File:")
         self.list_widget = PdfListWidget()
@@ -83,9 +85,6 @@ class ReorderWidget(QWidget):
         self._layout.addWidget(
             self.pages_reorder_widget, 0, Qt.AlignmentFlag.AlignCenter
         )
-
-        self.progress_bar = QProgressBar()
-        self.progress_bar.hide()
 
         self._layout.addWidget(self.progress_bar)
 

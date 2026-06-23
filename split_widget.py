@@ -57,6 +57,8 @@ class SplitWidget(QWidget):
         self._layout = QVBoxLayout(self)
         self.path: str | None = None
         self.indices: list[int] | None = None
+        self.progress_bar = QProgressBar()
+        self.progress_bar.hide()
 
         self.file_label = QLabel("File:")
         self.list_widget = PdfListWidget()
@@ -69,9 +71,6 @@ class SplitWidget(QWidget):
 
         self._layout.addWidget(self.file_label, 0, Qt.AlignmentFlag.AlignCenter)
         self._layout.addWidget(self.list_widget)
-
-        self.progress_bar = QProgressBar()
-        self.progress_bar.hide()
 
         self._layout.addWidget(self.progress_bar)
 
