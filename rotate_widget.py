@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QMessageBox,
 )
-from PySide6.QtGui import QImage, QPixmap
+from PySide6.QtGui import QImage, QPixmap, QShortcut, QKeySequence
 from PySide6.QtCore import Qt, QDir, QThread, Signal, QSize
 from thumbnailwidget import ThumbnailWidget, ThumbnailWorker
 from pypdf import PdfWriter, PdfReader
@@ -34,9 +34,10 @@ class Worker(QThread):
         self.path = path
         self.indices = indices
 
-    def run(self) -> None:
+    def run(self):
         src_doc = PdfReader(self.path)
         out_doc = PdfWriter()
+
         self.total_ready.emit(len(self.indices))
 
         for i, index in enumerate(self.indices):
@@ -56,6 +57,24 @@ class RotateWidget(QWidget):
         self._layout.addWidget(self.file_label, 0, Qt.AlignmentFlag.AlignCenter)
         self._layout.addWidget(self.pages_list)
 
+        self.page_rotate_widget = QWidget()
+        self.page_rotate_layout = QHBoxLayout(self.page_rotate_widget)
+
+        self.rotate_right_btn = QPushButton("Right")
+        self.rotate_right_btn.setToolTip("Alt+Right")
+        self.rotate_right_btn.setEnabled(False)
+        self.rotate_right_btn.clicked.connect(self.rotate_page_right)
+
+        self.rotate_left_btn = QPushButton("Left")
+        self.rotate_left_btn.setToolTip("Alt+Left")
+        self.rotate_left_btn.setEnabled(False)
+        self.rotate_left_btn.clicked.connect(self.rotate_page_left)
+
+        self.page_rotate_layout.addWidget(self.rotate_left_btn)
+        self.page_rotate_layout.addWidget(self.rotate_right_btn)
+
+        self._layout.addWidget(self.page_rotate_widget, 0, Qt.AlignmentFlag.AlignCenter)
+
         self.progress_bar = QProgressBar()
         self.progress_bar.hide()
 
@@ -66,23 +85,23 @@ class RotateWidget(QWidget):
         self.add_file_btn = QPushButton("Add File")
         self.add_file_btn.clicked.connect(self.open_file)
 
-        self.pages_input = QLineEdit()
-        self.pages_input.setPlaceholderText("pages (i.e 1,3-5,4)")
-        self.pages_input.setEnabled(False)
-        self.pages_input.textChanged.connect(self.calculate_indices)
-        self.pages_input.textChanged.connect(self.re_render_thumbnails)
+        QShortcut(QKeySequence("Alt+Right"), self).activated.connect(
+            self.rotate_right_btn.animateClick
+        )
+        QShortcut(QKeySequence("Alt+Left"), self).activated.connect(
+            self.rotate_left_btn.animateClick
+        )
 
-        self.split_btn = QPushButton("Rotate")
-        self.split_btn.setEnabled(False)
-        self.split_btn.clicked.connect(self.split)
+        self.rotate_btn = QPushButton("Rotate")
+        self.rotate_btn.setEnabled(False)
+        self.rotate_btn.clicked.connect(self.rotate)
 
         self.pages_list.model().rowsInserted.connect(self.on_pages_change)
         self.pages_list.model().rowsRemoved.connect(self.on_pages_change)
 
         self.controls_layout.addWidget(self.add_file_btn)
         self.controls_layout.addStretch()
-        self.controls_layout.addWidget(self.pages_input)
-        self.controls_layout.addWidget(self.split_btn)
+        self.controls_layout.addWidget(self.rotate_btn)
 
         self._layout.addWidget(self.controls_widget)
 
@@ -105,75 +124,81 @@ class RotateWidget(QWidget):
 
     def set_initial_indices(self, count: int) -> None:
         self.page_count = count
-        self.pages_indices = [i for i in range(count)]
+        self.pages_indices: list[int] = []
 
     def prepopulate_list(self, count: int) -> None:
         for i in range(count):
             item = QListWidgetItem(self.pages_list)
             item.setSizeHint(QSize(120, 160))
 
-    def on_page_ready(self, pix: pypdfium.PdfBitmap, index: int) -> None:
+    def on_page_ready(self, pix: pypdfium.PdfBitmap, index: int):
         if index == self.page_count - 1:
             self.progress_bar.hide()
 
         item = self.pages_list.item(index)
-        page = ThumbnailWidget(pix, index)
+        page = ThumbnailWidget(pix, index, self.pages_list)
         item.setSizeHint(page.sizeHint())
         self.pages_list.setItemWidget(item, page)
 
-    def on_pages_change(self) -> None:
-        self.pages_input.setEnabled(self.pages_list.count() > 0)
-        self.split_btn.setEnabled(self.pages_list.count() > 0)
+    def on_pages_change(self):
+        pages_not_empty = self.pages_list.count() > 0
+        self.rotate_right_btn.setEnabled(pages_not_empty)
+        self.rotate_left_btn.setEnabled(pages_not_empty)
+        self.rotate_btn.setEnabled(pages_not_empty)
 
-    def calculate_indices(self, text: str) -> None:
-        gps = text.split(",")
-        results = set()
-        try:
-            for g in gps:
-                if "-" in g:
-                    parts = g.split("-")
-                    if len(parts) == 2:
-                        start, end = int(parts[0]) - 1, int(parts[1]) - 1
-                        start = max(0, min(start, self.page_count))
-                        end = max(0, min(end, self.page_count))
-                        for i in range(start, end + 1):
-                            results.add(i)
-                else:
-                    g_int = max(0, min(int(g) - 1, self.page_count))
-                    results.add(g_int)
-        except ValueError:
-            pass
+    def rotate_page_right(self) -> None:
+        row = self.pages_list.currentRow()
+        if row <= 0:
+            return
 
-        self.pages_indices = list(results)
+        widget = self.pages_list.itemWidget(self.pages_list.item(row))
+        if not isinstance(widget, ThumbnailWidget):
+            return
+        index, bitmap = widget.index, widget.bitmap
+        item = self.pages_list.takeItem(row)
+        self.pages_list.insertItem(row - 1, item)
+        new_widget = ThumbnailWidget(bitmap, index, self.pages_list)
+        self.pages_list.setItemWidget(item, new_widget)
+        self.pages_list.setCurrentRow(row - 1)
 
-    def re_render_thumbnails(self, text: str) -> None:
-        if len(text) == 0:
-            for i in range(self.pages_list.count()):
-                self.pages_list.setRowHidden(i, False)
+    def rotate_page_left(self):
+        row = self.pages_list.currentRow()
+        if row >= self.pages_list.count() - 1:
+            return
 
-        else:
-            for i in range(self.pages_list.count()):
-                self.pages_list.setRowHidden(i, i not in self.pages_indices)
+        widget = self.pages_list.itemWidget(self.pages_list.item(row))
+        if not isinstance(widget, ThumbnailWidget):
+            return
+        index, bitmap = widget.index, widget.bitmap
+        item = self.pages_list.takeItem(row)
+        self.pages_list.insertItem(row + 1, item)
+        new_widget = ThumbnailWidget(bitmap, index, self.pages_list)
+        self.pages_list.setItemWidget(item, new_widget)
+        self.pages_list.setCurrentRow(row + 1)
 
-    def split(self) -> None:
-        self.progress_bar.show()
-        self.worker = Worker(self.path, self.pages_indices)
+    def rotate(self):
+        indices: list[int] = []
+        for i in range(self.pages_list.count()):
+            widget = self.pages_list.itemWidget(self.pages_list.item(i))
+            if not isinstance(widget, ThumbnailWidget):
+                continue
+            indices.append(widget.index)
+
+        self.worker = Worker(self.path, indices)
         self.worker.total_ready.connect(self.progress_bar.setMaximum)
         self.worker.progress.connect(self.progress_bar.setValue)
         self.worker.results_ready.connect(self.on_results)
         self.worker.error.connect(self.on_error)
         self.worker.start()
 
-    def on_results(self, doc: PdfWriter) -> None:
+    def on_results(self, doc: PdfWriter):
         self.progress_bar.hide()
         self.progress_bar.reset()
         self.out_path, _ = QFileDialog.getSaveFileName(
             self, "Save as", QDir.homePath(), "PDFs (*.pdf)"
         )
-
         if not self.out_path.endswith(".pdf"):
             self.out_path = self.out_path + ".pdf"
-
         doc.write(self.out_path)
 
     def on_error(self, err: str) -> None:
