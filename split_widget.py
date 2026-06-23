@@ -28,6 +28,7 @@ class Worker(QThread):
     progress = Signal(int)
     total_ready = Signal(int)
     error = Signal(str)
+    done = Signal()
 
     def __init__(self, path: str, indices: list[int]):
         super().__init__()
@@ -44,6 +45,7 @@ class Worker(QThread):
             self.progress.emit(i + 1)
 
         self.results_ready.emit(out_doc)
+        self.done.emit()
 
 
 class SplitWidget(QWidget):
@@ -94,13 +96,15 @@ class SplitWidget(QWidget):
         self.render_thumbnails()
 
     def render_thumbnails(self) -> None:
-        self.progress_bar.show()
         self.viewer_worker = ThumbnailWorker(self.path)
+        self.viewer_worker.started.connect(self.progress_bar.show)
         self.viewer_worker.total_ready.connect(self.progress_bar.setMaximum)
         self.viewer_worker.total_ready.connect(self.set_initial_indices)
         self.viewer_worker.total_ready.connect(self.prepopulate_list)
         self.viewer_worker.progress.connect(self.progress_bar.setValue)
         self.viewer_worker.results_ready.connect(self.on_page_ready)
+        self.viewer_worker.done.connect(self.progress_bar.hide)
+        self.viewer_worker.done.connect(self.progress_bar.reset)
         self.viewer_worker.start()
 
     def set_initial_indices(self, count: int) -> None:
@@ -113,9 +117,6 @@ class SplitWidget(QWidget):
             item.setSizeHint(QSize(120, 160))
 
     def on_page_ready(self, pix: pypdfium.PdfBitmap, index: int) -> None:
-        if index == self.page_count - 1:
-            self.progress_bar.hide()
-
         item = self.pages_list.item(index)
         page = ThumbnailWidget(pix, index)
         item.setSizeHint(page.sizeHint())
@@ -156,17 +157,17 @@ class SplitWidget(QWidget):
                 self.pages_list.setRowHidden(i, i not in self.pages_indices)
 
     def split(self) -> None:
-        self.progress_bar.show()
         self.worker = Worker(self.path, self.pages_indices)
+        self.worker.started.connect(self.progress_bar.show)
         self.worker.total_ready.connect(self.progress_bar.setMaximum)
         self.worker.progress.connect(self.progress_bar.setValue)
         self.worker.results_ready.connect(self.on_results)
+        self.worker.done.connect(self.progress_bar.hide)
+        self.worker.done.connect(self.progress_bar.reset)
         self.worker.error.connect(self.on_error)
         self.worker.start()
 
     def on_results(self, doc: PdfWriter) -> None:
-        self.progress_bar.hide()
-        self.progress_bar.reset()
         self.out_path, _ = QFileDialog.getSaveFileName(
             self, "Save as", QDir.homePath(), "PDFs (*.pdf)"
         )

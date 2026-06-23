@@ -24,6 +24,7 @@ class ThumbnailWorker(QThread):
     results_ready = Signal(pypdfium.PdfBitmap, int)
     progress = Signal(int)
     total_ready = Signal(int)
+    done = Signal()
 
     def __init__(self, path: str):
         super().__init__()
@@ -37,6 +38,8 @@ class ThumbnailWorker(QThread):
             pix = page.render(scale=0.5)
             self.results_ready.emit(pix, i)
             self.progress.emit(i + 1)
+
+        self.done.emit()
 
 
 class ThumbnailWidget(QWidget):
