@@ -13,10 +13,6 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "pylsp-mypy>=0.7.3",
-    "python-lsp-black>=2.0.0",
-    "python-lsp-server[all]>=1.14.0",
+    "basedpyright>=1.39.8",
+    "ruff>=0.15.18",
 ]
-
-[tool.mypy]
-strict = true
