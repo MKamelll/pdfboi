@@ -117,7 +117,7 @@ class ReorderWidget(QWidget):
         if len(self.path) < 1:
             return
         self.file_label.setText(f"File: {self.path}")
-        self.list_widget.render_thumbnails()
+        self.list_widget.render_thumbnails(self.path)
 
     def on_pages_change(self):
         pages_not_empty = self.list_widget.count() > 0

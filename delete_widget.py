@@ -99,7 +99,7 @@ class DeleteWidget(QWidget):
         self._layout.addWidget(self.controls_widget)
 
     def calculate_indices(self, text: str):
-        self.indices = calculate_indices(text)
+        self.indices = calculate_indices(text, self.list_widget.count())
 
     def open_file(self) -> None:
         self.path, _ = QFileDialog.getOpenFileName(
@@ -110,7 +110,7 @@ class DeleteWidget(QWidget):
             return
 
         self.file_label.setText(f"File: {self.path}")
-        self.list_widget.render_thumbnails()
+        self.list_widget.render_thumbnails(self.path)
 
     def on_pages_change(self, count: int) -> None:
         self.pages_input.setEnabled(count > 0)
