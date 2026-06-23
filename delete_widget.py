@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtCore import Qt, QDir, QThread, Signal, QSize
-from pdf_viewer_widget import PdfViewerWidget
+from pdflist_widget import PdfListWidget
 from thumbnailwidget import ThumbnailWidget, ThumbnailWorker
 from pypdf import PdfWriter, PdfReader
 import pypdfium2 as pypdfium
@@ -63,16 +63,16 @@ class DeleteWidget(QWidget):
         self.progress_bar.hide()
 
         self.file_label = QLabel("File:")
-        self.viewer_widget = PdfViewerWidget()
-        self.viewer_widget.started.connect(self.progress_bar.show)
-        self.viewer_widget.progress_max.connect(self.progress_bar.setMaximum)
-        self.viewer_widget.progress_update.connect(self.progress_bar.setValue)
-        self.viewer_widget.done.connect(self.progress_bar.hide)
-        self.viewer_widget.done.connect(self.progress_bar.reset)
-        self.viewer_widget.pages_change.connect(self.on_pages_change)
+        self.list_widget = PdfListWidget()
+        self.list_widget.started.connect(self.progress_bar.show)
+        self.list_widget.progress_max.connect(self.progress_bar.setMaximum)
+        self.list_widget.progress_update.connect(self.progress_bar.setValue)
+        self.list_widget.done.connect(self.progress_bar.hide)
+        self.list_widget.done.connect(self.progress_bar.reset)
+        self.list_widget.pages_change.connect(self.on_pages_change)
 
         self._layout.addWidget(self.file_label, 0, Qt.AlignmentFlag.AlignCenter)
-        self._layout.addWidget(self.viewer_widget)
+        self._layout.addWidget(self.list_widget)
 
         self._layout.addWidget(self.progress_bar)
 
@@ -106,7 +106,7 @@ class DeleteWidget(QWidget):
             self, "Open File", QDir.homePath(), "PDFs (*.pdf)"
         )
         self.file_label.setText(f"File: {self.path}")
-        self.viewer_widget.render_thumbnails(self.path)
+        self.list_widget.render_thumbnails(self.path)
 
     def on_pages_change(self, count: int) -> None:
         self.pages_input.setEnabled(count > 0)
@@ -114,12 +114,12 @@ class DeleteWidget(QWidget):
 
     def re_render_thumbnails(self, text: str) -> None:
         if len(text) == 0 or self.indices is None:
-            for i in range(self.viewer_widget.listCount()):
-                self.viewer_widget.setRowHidden(i, False)
+            for i in range(self.list_widget.count()):
+                self.list_widget.setRowHidden(i, False)
 
         else:
-            for i in range(self.viewer_widget.listCount()):
-                self.viewer_widget.setRowHidden(i, i in self.indices)
+            for i in range(self.list_widget.count()):
+                self.list_widget.setRowHidden(i, i in self.indices)
 
     def split(self) -> None:
         if self.path is None or self.indices is None:

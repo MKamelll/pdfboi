@@ -11,7 +11,7 @@ from thumbnailwidget import ThumbnailWidget, ThumbnailWorker
 import pypdfium2 as pypdfium
 
 
-class PdfViewerWidget(QWidget):
+class PdfListWidget(QListWidget):
     pages_change = Signal(int)
     started = Signal()
     progress_max = Signal(int)
@@ -20,20 +20,13 @@ class PdfViewerWidget(QWidget):
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__()
-        self._layout = QVBoxLayout(self)
-        self._layout.setContentsMargins(0, 0, 0, 0)
 
-        self.pages_list = QListWidget(self)
         self.path: str | None = None
 
-        self.pages_list.model().rowsInserted.connect(
-            lambda _: self.pages_change.emit(self.pages_list.count())
+        self.model().rowsInserted.connect(
+            lambda _: self.pages_change.emit(self.count())
         )
-        self.pages_list.model().rowsRemoved.connect(
-            lambda _: self.pages_change.emit(self.pages_list.count())
-        )
-
-        self._layout.addWidget(self.pages_list)
+        self.model().rowsRemoved.connect(lambda _: self.pages_change.emit(self.count()))
 
     def render_thumbnails(self, path: str) -> None:
         self.path = path
@@ -53,17 +46,11 @@ class PdfViewerWidget(QWidget):
 
     def prepopulate_list(self, count: int) -> None:
         for i in range(count):
-            item = QListWidgetItem(self.pages_list)
+            item = QListWidgetItem(self)
             item.setSizeHint(QSize(120, 160))
 
     def on_page_ready(self, pix: pypdfium.PdfBitmap, index: int) -> None:
-        item = self.pages_list.item(index)
+        item = self.item(index)
         page = ThumbnailWidget(pix, index)
         item.setSizeHint(page.sizeHint())
-        self.pages_list.setItemWidget(item, page)
-
-    def listCount(self) -> int:
-        return self.pages_list.count()
-
-    def setRowHidden(self, index: int, state: bool):
-        self.pages_list.setRowHidden(index, state)
+        self.setItemWidget(item, page)
