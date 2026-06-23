@@ -29,19 +29,20 @@ class Worker(QThread):
     total_ready = Signal(int)
     error = Signal(str)
 
-    def __init__(self, path: str, indices: list[int]):
+    def __init__(self, path: str, transform: list[tuple[int, int]]):
         super().__init__()
         self.path = path
-        self.indices = indices
+        self.transform = transform
 
     def run(self):
         src_doc = PdfReader(self.path)
         out_doc = PdfWriter()
 
-        self.total_ready.emit(len(self.indices))
+        self.total_ready.emit(len(self.transform))
 
-        for i, index in enumerate(self.indices):
-            out_doc.append(src_doc, [index])
+        for i, (index, rotation) in enumerate(self.transform):
+            out_doc.add_page(src_doc.pages[index])
+            out_doc.pages[index].rotate(rotation)
             self.progress.emit(i + 1)
 
         self.results_ready.emit(out_doc)
@@ -148,52 +149,41 @@ class RotateWidget(QWidget):
 
     def rotate_page_right(self) -> None:
         row = self.pages_list.currentRow()
-        if row <= 0:
-            return
-
         widget = self.pages_list.itemWidget(self.pages_list.item(row))
         if not isinstance(widget, ThumbnailWidget):
             return
-        index, bitmap = widget.index, widget.bitmap
-        item = self.pages_list.takeItem(row)
-        self.pages_list.insertItem(row - 1, item)
-        new_widget = ThumbnailWidget(bitmap, index, self.pages_list)
-        self.pages_list.setItemWidget(item, new_widget)
-        self.pages_list.setCurrentRow(row - 1)
+        widget.rotate(90)
+        self.pages_list.item(row).setSizeHint(widget.sizeHint())
 
     def rotate_page_left(self):
         row = self.pages_list.currentRow()
-        if row >= self.pages_list.count() - 1:
-            return
 
         widget = self.pages_list.itemWidget(self.pages_list.item(row))
         if not isinstance(widget, ThumbnailWidget):
             return
-        index, bitmap = widget.index, widget.bitmap
-        item = self.pages_list.takeItem(row)
-        self.pages_list.insertItem(row + 1, item)
-        new_widget = ThumbnailWidget(bitmap, index, self.pages_list)
-        self.pages_list.setItemWidget(item, new_widget)
-        self.pages_list.setCurrentRow(row + 1)
+
+        widget.rotate(-90)
+        self.pages_list.item(row).setSizeHint(widget.sizeHint())
 
     def rotate(self):
-        indices: list[int] = []
+        transform: list[tuple[int, int]] = []
         for i in range(self.pages_list.count()):
             widget = self.pages_list.itemWidget(self.pages_list.item(i))
             if not isinstance(widget, ThumbnailWidget):
                 continue
-            indices.append(widget.index)
+            transform.append((widget.index, widget.rotation))
 
-        self.worker = Worker(self.path, indices)
+        self.worker = Worker(self.path, transform)
+        self.worker.started.connect(self.progress_bar.show)
         self.worker.total_ready.connect(self.progress_bar.setMaximum)
         self.worker.progress.connect(self.progress_bar.setValue)
+        self.worker.results_ready.connect(self.progress_bar.hide)
+        self.worker.results_ready.connect(self.progress_bar.reset)
         self.worker.results_ready.connect(self.on_results)
         self.worker.error.connect(self.on_error)
         self.worker.start()
 
     def on_results(self, doc: PdfWriter):
-        self.progress_bar.hide()
-        self.progress_bar.reset()
         self.out_path, _ = QFileDialog.getSaveFileName(
             self, "Save as", QDir.homePath(), "PDFs (*.pdf)"
         )
