@@ -13,9 +13,11 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QDir
 import sys
 from merge_widget import MergeWidget
+from rotate_widget import RotateWidget
 from split_widget import SplitWidget
 from delete_widget import DeleteWidget
 from reorder_widget import ReorderWidget
+from rotate_widget import RotateWidget
 
 
 class MainWindow(QWidget):
@@ -36,7 +38,7 @@ class MainWindow(QWidget):
         self.splitter.setStretchFactor(1, 1)
         self.stack = QStackedWidget()
 
-        self._actions = ["Merge", "Split", "Reorder", "Delete"]
+        self._actions = ["Merge", "Split", "Reorder", "Delete", "Rotate"]
         self.left_box_list = QListWidget()
         self.left_box_list.addItems(self._actions)
         self.left_box_list.currentRowChanged.connect(self.stack.setCurrentIndex)
@@ -48,11 +50,13 @@ class MainWindow(QWidget):
         self.split_widget = SplitWidget()
         self.reorder_widget = ReorderWidget()
         self.delete_widget = DeleteWidget()
+        self.rotate_widget = RotateWidget()
 
         self.stack.addWidget(self.merge_widget)
         self.stack.addWidget(self.split_widget)
         self.stack.addWidget(self.reorder_widget)
         self.stack.addWidget(self.delete_widget)
+        self.stack.addWidget(self.rotate_widget)
 
         self._layout.addWidget(self.splitter)
 
