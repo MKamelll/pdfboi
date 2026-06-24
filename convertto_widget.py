@@ -244,7 +244,7 @@ class ConvertToWidget(QWidget):
         self.out_path, _ = QFileDialog.getSaveFileName(
             self, "Save as", QDir.homePath(), "Excel (*.xlsx)"
         )
-        if self.out_path is None:
+        if len(self.out_path) < 1:
             return
 
         if not self.out_path.endswith(".xlsx"):
