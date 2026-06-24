@@ -14,6 +14,6 @@ def calculate_indices(text: str, page_count: int) -> list[int] | None:
             else:
                 g_int = max(0, min(int(g) - 1, page_count))
                 results.add(g_int)
-        return list(results)
+        return list(results) if len(results) > 0 else None
     except ValueError:
         pass

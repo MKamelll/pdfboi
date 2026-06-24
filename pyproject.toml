@@ -5,10 +5,14 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
+    "arabic-reshaper>=3.0.1",
+    "openpyxl>=3.1.5",
+    "pdfplumber>=0.11.10",
     "pillow>=12.2.0",
     "pypdf>=6.13.3",
     "pypdfium2>=5.10.1",
     "pyside6>=6.11.1",
+    "python-bidi>=0.6.10",
 ]
 
 [dependency-groups]
