@@ -25,6 +25,7 @@ import pdfplumber
 import openpyxl
 import arabic_reshaper
 from bidi.algorithm import StrOrBytes, get_display
+import re
 
 
 class Worker(QThread):
@@ -60,7 +61,10 @@ class Worker(QThread):
             self.total_ready.emit(len(pages))
 
             for i, page in enumerate(pages):
-                tables = page.extract_tables()
+                if self.rtl:
+                    tables = page.extract_tables(dict(text_char_dir_render="rtl"))
+                else:
+                    tables = page.extract_tables()
                 for table in tables:
                     if not table:
                         continue
@@ -87,11 +91,14 @@ class Worker(QThread):
             return False
         return any("\u0600" <= c <= "\u06ff" for c in text)
 
-    def fix_arabic(self, text: str) -> StrOrBytes:
-        if not self.needs_arabic_fix(text):
-            return text
-        reshaped = arabic_reshaper.reshape(text)
-        return get_display(reshaped)
+    def fix_cell(self, text: str):
+        if not text:
+            return ""
+        if self.needs_arabic_fix(text):
+            return arabic_reshaper.reshape(text)
+        if re.match(r"^[\d.,\s]+$", text):
+            return text[::-1]
+        return text
 
     def run(self) -> None:
         all_rows = self.extract_rows()
@@ -104,9 +111,12 @@ class Worker(QThread):
 
         ws.sheet_view.rightToLeft = self.rtl
         for row in all_rows:
-            ws.append(
-                [self.fix_arabic(cell if cell is not None else "") for cell in row]
-            )
+            r = [cell if cell is not None else "" for cell in row]
+            if self.rtl:
+                r = [self.fix_cell(cell) for cell in r]
+            if self.rtl:
+                r.reverse()
+            ws.append(r)
 
         self.results_ready.emit(wb)
 
@@ -161,7 +171,7 @@ class ConvertToWidget(QWidget):
         self.combo_box.addItems(self.out_types)
 
         self.rtl_check_box = QCheckBox("RtL")
-        self.rtl_check_box.setToolTip("Check if the sheet should be Righ-To-Left")
+        self.rtl_check_box.setToolTip("Check if the sheet is in Right-To-Left language")
         self.rtl_check_box.setChecked(False)
         self.rtl_check_box.setVisible(self.combo_box.currentIndex() == 0)
 
