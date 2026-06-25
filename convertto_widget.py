@@ -1,3 +1,5 @@
+from enum import IntEnum
+
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -28,7 +30,12 @@ from bidi.algorithm import StrOrBytes, get_display
 import re
 
 
-class Worker(QThread):
+class OutType(IntEnum):
+    EXCEL = 0
+    WORD = 1
+
+
+class ExcelWorker(QThread):
     results_ready = Signal(openpyxl.Workbook)
     progress = Signal(int)
     total_ready = Signal(int)
@@ -159,14 +166,16 @@ class ConvertToWidget(QWidget):
         self.rtl_check_box = QCheckBox("RtL")
         self.rtl_check_box.setToolTip("Check if the sheet is in Right-To-Left language")
         self.rtl_check_box.setChecked(False)
-        self.rtl_check_box.setVisible(self.combo_box.currentIndex() == 0)
+        self.rtl_check_box.setVisible(self.combo_box.currentIndex() == OutType.EXCEL)
 
         self.headers_check_box = QCheckBox("Headers")
         self.headers_check_box.setToolTip(
             "Uncheck this if the tables don't have headers"
         )
         self.headers_check_box.setChecked(True)
-        self.headers_check_box.setVisible(self.combo_box.currentIndex() == 0)
+        self.headers_check_box.setVisible(
+            self.combo_box.currentIndex() == OutType.EXCEL
+        )
         self.combo_box.currentIndexChanged.connect(self.on_type_changed)
 
         self.out_types_layout.addWidget(self.combo_box)
@@ -179,8 +188,8 @@ class ConvertToWidget(QWidget):
         self._layout.addWidget(self.controls_widget)
 
     def on_type_changed(self, index: int) -> None:
-        self.headers_check_box.setVisible(index == 0)
-        self.rtl_check_box.setVisible(index == 0)
+        self.headers_check_box.setVisible(index == OutType.EXCEL)
+        self.rtl_check_box.setVisible(index == OutType.EXCEL)
 
     def calculate_indices(self, text: str) -> None:
         self.indices = calculate_indices(text, self.list_widget.count())
@@ -209,24 +218,22 @@ class ConvertToWidget(QWidget):
         self.file_label.setText(f"File: {self.path}")
         self.list_widget.render_thumbnails(self.path)
 
-    def convert_file(self) -> None:
-        if self.path is None:
-            return
+    def excel_file(self, path: str) -> None:
         has_headers = self.headers_check_box.isChecked()
         rtl = self.rtl_check_box.isChecked()
-        self.worker = Worker(
-            self.path, indices=self.indices, has_headers=has_headers, rtl=rtl
+        self.worker = ExcelWorker(
+            path, indices=self.indices, has_headers=has_headers, rtl=rtl
         )
         self.worker.started.connect(self.progress_bar.show)
         self.worker.total_ready.connect(self.progress_bar.setMaximum)
         self.worker.progress.connect(self.progress_bar.setValue)
-        self.worker.results_ready.connect(self.on_results)
+        self.worker.results_ready.connect(self.on_excel_results)
         self.worker.results_ready.connect(self.progress_bar.hide)
         self.worker.results_ready.connect(self.progress_bar.reset)
         self.worker.error.connect(self.on_error)
         self.worker.start()
 
-    def on_results(self, wb: openpyxl.Workbook) -> None:
+    def on_excel_results(self, wb: openpyxl.Workbook) -> None:
         self.out_path, _ = QFileDialog.getSaveFileName(
             self, "Save as", QDir.homePath(), "Excel (*.xlsx)"
         )
@@ -237,6 +244,19 @@ class ConvertToWidget(QWidget):
             self.out_path += ".xlsx"
 
         wb.save(self.out_path)
+
+    def word_file(self, path: str) -> None:
+        pass
+
+    def convert_file(self) -> None:
+        if self.path is None:
+            return
+
+        if self.combo_box.currentIndex() == OutType.EXCEL:
+            self.excel_file(self.path)
+
+        elif self.combo_box.currentIndex() == OutType.WORD:
+            self.word_file(self.path)
 
     def on_error(self, err: str) -> None:
         QMessageBox.warning(self, "Error", err)

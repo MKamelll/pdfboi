@@ -1,4 +1,4 @@
-import re
+import regex
 
 import arabic_reshaper
 
@@ -27,7 +27,7 @@ def calculate_indices(text: str, page_count: int) -> list[int] | None:
 def needs_arabic_fix(text: str) -> bool:
     if len(text) < 1:
         return False
-    return any("\u0600" <= c <= "\u06ff" for c in text)
+    return bool(regex.search(r"\p{Arabic}", text))
 
 
 def normalize_numbers(text: str) -> str:
@@ -42,16 +42,14 @@ def fix_rtl(text: str, collapse_white_space: bool = False) -> str:
     text = normalize_numbers(text)
     if collapse_white_space:
         text = " ".join(text.split())
-    tokens = re.split(r"(\d+\.?\d*)", text)
+    tokens = regex.split(r"(\P{Arabic}+)", text)
     fixed = []
     for token in tokens:
         token = token.strip()
-        if re.match(r"\d+\.?\d*", token):
-            fixed.append(token[::-1])
-        elif needs_arabic_fix(token):
+        if needs_arabic_fix(token):
             reshaped = arabic_reshaper.reshape(token)
             fixed.append(reshaped)
         else:
-            fixed.append(token)
+            fixed.append(token[::-1])
 
     return " ".join([t for t in fixed if t.strip()])
