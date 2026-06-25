@@ -45,6 +45,7 @@ class PdfListWidget(QListWidget):
         self.pages_indices: list[int] = []
 
     def prepopulate_list(self, count: int) -> None:
+        self.clear()
         for i in range(count):
             item = QListWidgetItem(self)
             item.setSizeHint(QSize(120, 160))
