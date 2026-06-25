@@ -20,7 +20,7 @@ from PySide6.QtCore import Qt, QDir, QThread, Signal
 from pypdf import PdfWriter
 
 from pdflist_widget import PdfListWidget
-from util import calculate_indices
+from util import calculate_indices, fix_rtl
 import pdfplumber
 import openpyxl
 import arabic_reshaper
@@ -86,33 +86,6 @@ class Worker(QThread):
 
         return all_rows
 
-    def needs_arabic_fix(self, text: str) -> bool:
-        if len(text) < 1:
-            return False
-        return any("\u0600" <= c <= "\u06ff" for c in text)
-
-    def normalize_numbers(self, text: str) -> str:
-        table = str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789")
-        return text.translate(table)
-
-    def fix_cell(self, text: str) -> str:
-        if len(text) < 1:
-            return text
-
-        text = self.normalize_numbers(text)
-        tokens = re.split(r"(\d+\.?\d*)", text)
-        fixed = []
-        for token in tokens:
-            token = token.strip()
-            if re.match(r"\d+\.?\d*", token):
-                fixed.append(token[::-1])
-            elif self.needs_arabic_fix(token):
-                fixed.append(arabic_reshaper.reshape(token))
-            else:
-                fixed.append(token)
-
-        return " ".join([t for t in fixed if t.strip()])
-
     def run(self) -> None:
         all_rows = self.extract_rows()
         wb = openpyxl.Workbook()
@@ -126,7 +99,7 @@ class Worker(QThread):
         for row in all_rows:
             r = [cell if cell is not None else "" for cell in row]
             if self.rtl:
-                r = [self.fix_cell(cell) for cell in r]
+                r = [fix_rtl(cell) for cell in r]
             if self.rtl:
                 r.reverse()
             ws.append(r)
