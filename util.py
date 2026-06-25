@@ -35,11 +35,13 @@ def normalize_numbers(text: str) -> str:
     return text.translate(table)
 
 
-def fix_rtl(text: str) -> str:
+def fix_rtl(text: str, collapse_white_space: bool = False) -> str:
     if len(text) < 1:
         return text
 
     text = normalize_numbers(text)
+    if collapse_white_space:
+        text = " ".join(text.split())
     tokens = re.split(r"(\d+\.?\d*)", text)
     fixed = []
     for token in tokens:
@@ -47,7 +49,8 @@ def fix_rtl(text: str) -> str:
         if re.match(r"\d+\.?\d*", token):
             fixed.append(token[::-1])
         elif needs_arabic_fix(token):
-            fixed.append(arabic_reshaper.reshape(token))
+            reshaped = arabic_reshaper.reshape(token)
+            fixed.append(reshaped)
         else:
             fixed.append(token)
 

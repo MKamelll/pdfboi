@@ -99,7 +99,7 @@ class Worker(QThread):
         for row in all_rows:
             r = [cell if cell is not None else "" for cell in row]
             if self.rtl:
-                r = [fix_rtl(cell) for cell in r]
+                r = [fix_rtl(cell, collapse_white_space=True) for cell in r]
             if self.rtl:
                 r.reverse()
             ws.append(r)
