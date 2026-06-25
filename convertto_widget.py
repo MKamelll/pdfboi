@@ -91,14 +91,27 @@ class Worker(QThread):
             return False
         return any("\u0600" <= c <= "\u06ff" for c in text)
 
-    def fix_cell(self, text: str):
-        if not text:
-            return ""
-        if self.needs_arabic_fix(text):
-            return arabic_reshaper.reshape(text)
-        if re.match(r"^[\d.,\s]+$", text):
-            return text[::-1]
-        return text
+    def normalize_numbers(self, text: str) -> str:
+        table = str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789")
+        return text.translate(table)
+
+    def fix_cell(self, text: str) -> str:
+        if len(text) < 1:
+            return text
+
+        text = self.normalize_numbers(text)
+        tokens = re.split(r"(\d+\.?\d*)", text)
+        fixed = []
+        for token in tokens:
+            token = token.strip()
+            if re.match(r"\d+\.?\d*", token):
+                fixed.append(token[::-1])
+            elif self.needs_arabic_fix(token):
+                fixed.append(arabic_reshaper.reshape(token))
+            else:
+                fixed.append(token)
+
+        return " ".join([t for t in fixed if t.strip()])
 
     def run(self) -> None:
         all_rows = self.extract_rows()
