@@ -1,3 +1,5 @@
+from os import preadv
+
 from PySide6.QtCore import QThread, Signal
 import arabic_reshaper
 import openpyxl
@@ -24,7 +26,7 @@ class ExcelWorker(QThread):
         self.has_headers = has_headers
         self.rtl = rtl
 
-    def extract_rows(self) -> list[list[str | None]]:
+    def extract_rows_rtl(self) -> list[list[str | None]]:
         all_rows: list[list[str | None]] = []
         headers = None
 
@@ -38,10 +40,76 @@ class ExcelWorker(QThread):
             self.total_ready.emit(len(pages))
 
             for i, page in enumerate(pages):
-                if self.rtl:
-                    tables = page.extract_tables(dict(text_char_dir_render="rtl"))
-                else:
-                    tables = page.extract_tables()
+                tables = page.extract_tables()
+                table_objects = page.find_tables()
+                for table_obj, table_data in zip(table_objects, tables):
+                    for i, row in enumerate(table_obj.rows):
+                        for j, cell in enumerate(row.cells):
+                            if cell is None:
+                                continue
+                            cell_chars = page.crop(cell).chars
+                            word = []
+                            words = []
+                            avg_char_width = (
+                                sum(c["width"] for c in cell_chars if c["text"] != " ")
+                                / len(cell_chars)
+                                if cell_chars
+                                else 5
+                            )
+                            threshold = avg_char_width * 0.5
+                            for char in cell_chars:
+                                if char["text"] == " " and char["width"] < threshold:
+                                    continue
+                                elif char["text"] == " ":
+                                    if word:
+                                        words.append("".join(word[::-1]))
+                                        word = []
+                                else:
+                                    word.append(char["text"])
+                            if word:
+                                words.append("".join(word[::-1]))
+
+                            table_data[i][j] = " ".join(words[::-1])
+
+                for table in tables:
+                    if not table:
+                        continue
+
+                    if self.has_headers:
+                        if headers is None:
+                            headers = table[0]
+                            all_rows.append(headers)
+                            all_rows.extend(table[1:])
+                        elif headers == table[0]:
+                            all_rows.extend(table[1:])
+                        else:
+                            all_rows.extend(table)
+
+                    else:
+                        all_rows.extend(table)
+
+                self.progress.emit(i + 1)
+
+        return all_rows
+
+    def extract_rows(self) -> list[list[str | None]]:
+        if self.rtl:
+            return self.extract_rows_rtl()
+
+        all_rows: list[list[str | None]] = []
+        headers = None
+
+        with pdfplumber.open(self.path) as pdf:
+            pages = (
+                [pdf.pages[i] for i in self.indices]
+                if self.indices is not None
+                else pdf.pages
+            )
+
+            self.total_ready.emit(len(pages))
+
+            for i, page in enumerate(pages):
+                tables = page.extract_tables()
                 for table in tables:
                     if not table:
                         continue
