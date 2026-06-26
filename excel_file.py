@@ -47,7 +47,7 @@ class ExcelWorker(QThread):
                         for j, cell in enumerate(row.cells):
                             if cell is None:
                                 continue
-                            cell_chars = page.crop(cell).chars
+                            cell_chars = page.crop(cell, strict=False).chars
                             word = []
                             words = []
                             lines = []
