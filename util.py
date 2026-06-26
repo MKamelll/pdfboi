@@ -22,34 +22,3 @@ def calculate_indices(text: str, page_count: int) -> list[int] | None:
         return list(results) if len(results) > 0 else None
     except ValueError:
         pass
-
-
-def needs_arabic_fix(text: str) -> bool:
-    if len(text) < 1:
-        return False
-    return bool(regex.search(r"\p{Arabic}", text))
-
-
-def normalize_numbers(text: str) -> str:
-    table = str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789")
-    return text.translate(table)
-
-
-def fix_rtl(text: str, collapse_white_space: bool = False) -> str:
-    if len(text) < 1:
-        return text
-
-    text = normalize_numbers(text)
-    if collapse_white_space:
-        text = " ".join(text.split())
-    tokens = regex.split(r"(\P{Arabic}+)", text)
-    fixed = []
-    for token in tokens:
-        token = token.strip()
-        if needs_arabic_fix(token):
-            reshaped = arabic_reshaper.reshape(token)
-            fixed.append(reshaped)
-        else:
-            fixed.append(token[::-1])
-
-    return " ".join([t for t in fixed if t.strip()])
