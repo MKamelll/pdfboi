@@ -50,15 +50,34 @@ class ExcelWorker(QThread):
                             cell_chars = page.crop(cell).chars
                             word = []
                             words = []
+                            lines = []
                             avg_char_width = (
                                 sum(c["width"] for c in cell_chars if c["text"] != " ")
                                 / len(cell_chars)
                                 if cell_chars
                                 else 5
                             )
-                            threshold = avg_char_width * 0.5
+                            w_threshold = avg_char_width * 0.5
+                            avg_char_height = (
+                                sum(c["height"] for c in cell_chars) / len(cell_chars)
+                                if cell_chars
+                                else 5
+                            )
+                            prev_char = None
                             for char in cell_chars:
-                                if char["text"] == " " and char["width"] < threshold:
+                                if (
+                                    prev_char is not None
+                                    and abs(char["y0"] - prev_char["y0"])
+                                    > avg_char_height
+                                ):
+                                    if word:
+                                        words.append("".join(word[::-1]))
+                                        word = []
+                                    if words:
+                                        lines.append(" ".join(words[::-1]))
+                                        words = []
+
+                                if char["text"] == " " and char["width"] < w_threshold:
                                     continue
                                 elif char["text"] == " ":
                                     if word:
@@ -66,10 +85,16 @@ class ExcelWorker(QThread):
                                         word = []
                                 else:
                                     word.append(char["text"])
+
+                                prev_char = char
+
                             if word:
                                 words.append("".join(word[::-1]))
 
-                            table_data[i][j] = " ".join(words[::-1])
+                            if words:
+                                lines.append(" ".join(words[::-1]))
+
+                            table_data[i][j] = " ".join(lines)
 
                 for table in tables:
                     if not table:
@@ -145,18 +170,20 @@ class ExcelWorker(QThread):
             return text
 
         text = self.normalize_numbers(text)
-        text = " ".join(text.split())
         tokens = regex.split(r"(\P{Arabic}+)", text)
         fixed = []
+        others = []
         for token in tokens:
             token = token.strip()
             if self.needs_arabic_fix(token):
                 reshaped = arabic_reshaper.reshape(token)
                 fixed.append(reshaped)
             else:
-                fixed.append(token[::-1])
+                others.append(token[::-1])
 
-        return " ".join([t for t in fixed if t.strip()])
+        return " ".join(
+            [t for t in fixed if t.strip()] + [t for t in others if t.strip()]
+        )
 
     def run(self) -> None:
         all_rows = self.extract_rows()
